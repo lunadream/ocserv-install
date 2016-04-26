@@ -7,14 +7,16 @@
 # Website: https://noname.space                    #
 #                                                  #
 ####################################################
+export LD_LIBRARY_PATH=/usr/local/lib
+export PATH=$PATH:/usr/local/bin:/usr/local/sbin
 
-#检测是否是root用户
+# Check for root
 if [[ $(id -u) != "0" ]]; then
     printf "\e[42m\e[31mError: You must be root to run this install script.\e[0m\n"
     exit 1
 fi
 
-#检测是否是CentOS 6或者RHEL 6
+# Check for Centos or RHEL 6
 if [[ $(grep "release 6." /etc/redhat-release 2>/dev/null | wc -l) -eq 0 ]]; then
     printf "\e[42m\e[31mError: Your OS is NOT CentOS 6 or RHEL 6.\e[0m\n"
     printf "\e[42m\e[31mThis install script is ONLY for CentOS 6 and RHEL 6.\e[0m\n"
@@ -25,24 +27,25 @@ basepath=$(dirname $0)
 cd ${basepath}
 
 function ConfigEnvironmentVariable {
-    #ocserv版本
+    #ocserv
     ocserv_version=0.10.4
     version=${1-${ocserv_version}}
     libtasn1_version=4.5
-    #变量设置
-    #单IP最大连接数，默认是2
+    # 
+    # Max number of clients with same IP - default is 2
     maxsameclients=10
-    #最大连接数，默认是16
+    # Maximum number of connections , the default is 16
     maxclients=1024
-    #服务器的证书和key文件，放在本脚本的同目录下，key文件的权限应该是600或者400
+    # Certificates and key file server , placed in the same directory of the script
+    # the permissions key file should be 600 or 400
     servercert=${2-server-cert.pem}
     serverkey=${3-server-key.pem}
-    #配置目录，你可更改为 /etc/ocserv 之类的
+    # Configuration directory , you can change the / etc / ocserv like
     confdir="/usr/local/etc/ocserv"
 
-    #安装系统组件
-    yum install -y -q net-tools bind-utils
-    #获取网卡接口名称
+    # Installing System Components
+    yum install -y -q net-tools bind-utils wget iproute
+    # Get the name of network interface cards
     ethlist=$(ifconfig | grep "Link encap" | cut -d " " -f1)
     eth=$(printf "${ethlist}\n" | head -n 1)
     if [[ $(printf "${ethlist}\n" | wc -l) -gt 2 ]]; then
@@ -58,8 +61,8 @@ function ConfigEnvironmentVariable {
         fi
     fi
 
-    #端口，默认是10443
-    port=10443
+    # Port , the default is 10443
+    port=443
     echo "Please input the port ocserv listen to."
     printf "Default port is \e[33m${port}\e[0m, let it blank to use default port: "
     read porttmp
@@ -67,7 +70,7 @@ function ConfigEnvironmentVariable {
         port=${porttmp}
     fi
 
-    #用户名，默认是user
+    # User name default user
     username=user
     echo "Please input ocserv user name:"
     printf "Default user name is \e[33m${username}\e[0m, let it blank to use default user name: "
@@ -76,7 +79,7 @@ function ConfigEnvironmentVariable {
         username=${usernametmp}
     fi
 
-    #随机密码
+    #Random password
     randstr() {
         index=0
         str=""
@@ -96,7 +99,7 @@ function ConfigEnvironmentVariable {
 }
 
 function PrintEnvironmentVariable {
-    #打印配置参数
+    # Print configuration parameters
     clear
     ipv4=$(ip -4 -f inet addr | grep "inet " | grep -v "lo:" | grep -v "127.0.0.1" | grep -o -P "\d+\.\d+\.\d+\.\d+\/\d+" | grep -o -P "\d+\.\d+\.\d+\.\d+")
     ipv6=$(ip -6 addr | grep "inet6" | grep -v "::1/128" | grep -o -P "([a-z\d]+:[a-z\d:]+\/\d+)" | grep -o -P "([a-z\d]+:[a-z\d:]+)")
@@ -122,66 +125,67 @@ function PrintEnvironmentVariable {
 }
 
 function CompileOcserv {
-    #升级系统
-    #yum update -y -q
+    # Upgrading the system
+    yum update -y -q
     yum install -y -q epel-release
-    #安装ocserv依赖组件
+    # Installation ocserv dependent components
     yum -y install autoconf automake gcc libtasn1-devel zlib zlib-devel trousers trousers-devel gmp-devel gmp xz texinfo libnl-devel libnl tcp_wrappers-libs tcp_wrappers-devel tcp_wrappers dbus dbus-devel ncurses-devel pam-devel readline-devel bison bison-devel flex expat-devel
-    #编译安装GNU Nettle
+    # Compile and install GNU Nettle
 	wget http://ftp.gnu.org/gnu/nettle/nettle-2.7.1.tar.gz
 	tar zxf nettle-2.7.1.tar.gz && cd nettle-2.7.1
 	./configure --prefix=/usr && make
 	make install &&chmod -v 755 /usr/lib/libhogweed.so.2.5 /usr/lib/libnettle.so.4.7 &&install -v -m755 -d /usr/share/doc/nettle-2.7.1 &&install -v -m644 nettle.html /usr/share/doc/nettle-2.7.1
 	cd ..
-	#编译安装Unbound
+	# Compile / install Unbound
 	wget http://unbound.nlnetlabs.nl/downloads/unbound-latest.tar.gz
 	tar zxf unbound-latest.tar.gz && cd unbound-*
 	./configure && make && make install
 	echo '/usr/local/lib' > /etc/ld.so.conf.d/local-libraries.conf && ldconfig
 	mkdir -p /etc/unbound && unbound-anchor -a "/etc/unbound/root.key"
 	cd ..
-	#编译安装gnutls
+	# Compile /install gnutls
 	wget ftp://ftp.gnutls.org/gcrypt/gnutls/v3.2/gnutls-3.2.15.tar.xz
 	tar xvf gnutls-3.2.15.tar.xz
 	cd gnutls-3.2.15
 	export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
 	./configure && make && make install
 	cd ..
-	#编译安装libnl
+	# Compile / install libnl
 	wget http://www.carisma.slowglass.com/~tgr/libnl/files/libnl-3.2.25.tar.gz
 	tar xvf libnl-3.2.25.tar.gz
 	cd libnl-3.2.25
 	./configure && make && make install
 	cd ..
-	#编译安装start-stop-dameon
-	wget http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_1.18.2.tar.xz
-	tar -xvf dpkg_1.18.2.tar.xz
-	cd dpkg-1.18.2
-	./configure
-	make
-	cd utils
-	make
-	cp -f start-stop-daemon /usr/bin/start-stop-daemon
-	cd ..
-    #下载ocserv并编译安装
+	# Compile / install start-stop-dameon
+	#wget http://ftp.de.debian.org/debian/pool/main/d/dpkg/dpkg_1.18.2.tar.xz
+	#tar -xvf dpkg_1.18.2.tar.xz
+	#cd dpkg-1.18.2
+	#./configure
+	#make
+	#cd utils
+	#make
+	#cp -f start-stop-daemon /usr/bin/start-stop-daemon
+	#cd ..
+    # ocserv download, compile, install
     wget -t 0 -T 60 "ftp://ftp.infradead.org/pub/ocserv/ocserv-${version}.tar.xz"
     tar axf ocserv-${version}.tar.xz
     cd ocserv-${version}
     sed -i 's/#define MAX_CONFIG_ENTRIES.*/#define MAX_CONFIG_ENTRIES 200/g' src/vpn.h
     ./configure && make && make install
 	
-    #复制配置文件样本
+    # Copy the sample configuration file
     mkdir -p "${confdir}"
     cp "doc/sample.config" "${confdir}/ocserv.conf"
-    wget https://gist.github.com/kevinzhow/9661623/raw/eb8bc8292f7e7b708b2baafe19ecd616155220a1/ocserv -O /etc/init.d/ocserv
+#    wget https://gist.github.com/kevinzhow/9661623/raw/eb8bc8292f7e7b708b2baafe19ecd616155220a1/ocserv -O /etc/init.d/ocserv
+     cp ${basepath}/ocserv /etc/init.d
 	chmod 755 /etc/init.d/ocserv
     cd ${basepath}
 }
 
 function ConfigOcserv {
-    #检测是否有证书和key文件
+    # Detect whether there is a certificate and key files
     if [[ ! -f "${servercert}" ]] || [[ ! -f "${serverkey}" ]]; then
-        #创建ca证书和服务器证书（参考http://www.infradead.org/ocserv/manual.html#heading5）
+        #Create ca and server certificates
         certtool --generate-privkey --outfile ca-key.pem
 
         cat << _EOF_ >ca.tmpl
@@ -214,10 +218,10 @@ _EOF_
         --template server.tmpl --outfile ${servercert}
     fi
 
-    #把证书复制到ocserv的配置目录
+    # Copy the certificate to ocserv configuration directory
     cp "${servercert}" "${confdir}" && cp "${serverkey}" "${confdir}"
 
-    #编辑配置文件
+    # Add password to password file
     (echo "${password}"; sleep 1; echo "${password}") | ocpasswd -c "${confdir}/ocpasswd" ${username}
 
     sed -i "s#./sample.passwd#${confdir}/ocpasswd#g" "${confdir}/ocserv.conf"
@@ -234,15 +238,15 @@ _EOF_
     sed -i "s/run-as-group = daemon/run-as-group = nobody/g" "${confdir}/ocserv.conf"
     sed -i "s/cookie-timeout = 300/cookie-timeout = 86400/g" "${confdir}/ocserv.conf"
 	sed -i "s/isolate-workers = true/isolate-workers = false/g" "${confdir}/ocserv.conf"
-    sed -i 's$route = 192.168.1.0/255.255.255.0$#route = 192.168.1.0/255.255.255.0$g' "${confdir}/ocserv.conf"
-    sed -i 's$route = 192.168.5.0/255.255.255.0$#route = 192.168.5.0/255.255.255.0$g' "${confdir}/ocserv.conf"
+    sed -i 's$^route = 192.168.1.0/255.255.255.0$#route = 192.168.1.0/255.255.255.0$g' "${confdir}/ocserv.conf"
+    sed -i 's$^route = 192.168.5.0/255.255.255.0$#route = 192.168.5.0/255.255.255.0$g' "${confdir}/ocserv.conf"
 
 
 
-    #修改ocserv服务
+    # Modify ocserv Service
     #sed -i "s#^ExecStart=#ExecStartPre=/usr/bin/firewall-cmd --direct --add-rule ipv4 filter FORWARD 0 -s 192.168.8.0/21 -j ACCEPT\nExecStartPre=/usr/bin/firewall-cmd --direct --add-rule ipv4 nat POSTROUTING 0 -s 192.168.8.0/21 -o ${eth} -j MASQUERADE\nExecStart=#g" "/etc/init.d/ocserv"
-    sed -i "s#/usr/sbin/ocserv#/usr/local/sbin/ocserv#g" "/etc/init.d/ocserv"
-    sed -i "s#/etc/ocserv/ocserv.conf#$confdir/ocserv.conf#g" "/etc/init.d/ocserv"
+#    sed -i "s#/usr/sbin/ocserv#/usr/local/sbin/ocserv#g" "/etc/init.d/ocserv"
+#    sed -i "s#/etc/ocserv/ocserv.conf#$confdir/ocserv.conf#g" "/etc/init.d/ocserv"
 }
 
 function ConfigFirewall {
@@ -261,25 +265,25 @@ fi
 }
 
 function ConfigSystem {
-    #关闭selinux
+    # Disable SELinx
     sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
     setenforce 0
-    #修改系统
+    # Modify the system
     echo "Enable IP forward."
     sysctl -w net.ipv4.ip_forward=1
     echo net.ipv4.ip_forward = 1 >> "/etc/sysctl.conf"
     chkconfig ocserv --add
     echo "Enable ocserv service to start during bootup."
     chkservice ocserv on
-    #开启ocserv服务
+    # Open ocserv Service
     service ocserv start
     echo
 }
 
 function PrintResult {
-    #检测防火墙和ocserv服务是否正常
+    # Check firewall and ocserv
     clear
-    printf "\e[36mChenking Firewall status...\e[0m\n"
+    printf "\e[36mChecking Firewall status...\e[0m\n"
     iptables -L -n | grep --color=auto -E "(${port}|192.168.8.0)"
     line=$(iptables -L -n | grep -c -E "(${port}|192.168.8.0)")
     if [[ ${line} -ge 2 ]]
@@ -301,7 +305,7 @@ function PrintResult {
         printf "\e[33mWARNING!!! ocserv service is NOT Running! \e[0m\n"
     fi
 
-    #打印VPN参数
+    # Print VPN parameters
     printf "
     if there are \e[33mNO WARNING\e[0m above, then you can connect to
     your ocserv VPN Server with the default user/password below:
