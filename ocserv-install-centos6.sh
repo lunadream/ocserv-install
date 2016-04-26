@@ -8,6 +8,7 @@
 #                                                  #
 ####################################################
 export LD_LIBRARY_PATH=/usr/local/lib
+export PATH=$PATH:/usr/local/bin:/usr/local/sbin
 
 # Check for root
 if [[ $(id -u) != "0" ]]; then
@@ -175,7 +176,8 @@ function CompileOcserv {
     # Copy the sample configuration file
     mkdir -p "${confdir}"
     cp "doc/sample.config" "${confdir}/ocserv.conf"
-    wget https://gist.github.com/kevinzhow/9661623/raw/eb8bc8292f7e7b708b2baafe19ecd616155220a1/ocserv -O /etc/init.d/ocserv
+#    wget https://gist.github.com/kevinzhow/9661623/raw/eb8bc8292f7e7b708b2baafe19ecd616155220a1/ocserv -O /etc/init.d/ocserv
+     cp ${basepath}/ocserv /etc/init.d
 	chmod 755 /etc/init.d/ocserv
     cd ${basepath}
 }
@@ -243,8 +245,8 @@ _EOF_
 
     # Modify ocserv Service
     #sed -i "s#^ExecStart=#ExecStartPre=/usr/bin/firewall-cmd --direct --add-rule ipv4 filter FORWARD 0 -s 192.168.8.0/21 -j ACCEPT\nExecStartPre=/usr/bin/firewall-cmd --direct --add-rule ipv4 nat POSTROUTING 0 -s 192.168.8.0/21 -o ${eth} -j MASQUERADE\nExecStart=#g" "/etc/init.d/ocserv"
-    sed -i "s#/usr/sbin/ocserv#/usr/local/sbin/ocserv#g" "/etc/init.d/ocserv"
-    sed -i "s#/etc/ocserv/ocserv.conf#$confdir/ocserv.conf#g" "/etc/init.d/ocserv"
+#    sed -i "s#/usr/sbin/ocserv#/usr/local/sbin/ocserv#g" "/etc/init.d/ocserv"
+#    sed -i "s#/etc/ocserv/ocserv.conf#$confdir/ocserv.conf#g" "/etc/init.d/ocserv"
 }
 
 function ConfigFirewall {
@@ -274,7 +276,7 @@ function ConfigSystem {
     echo "Enable ocserv service to start during bootup."
     chkservice ocserv on
     # Open ocserv Service
-    service ocserv start0
+    service ocserv start
     echo
 }
 
