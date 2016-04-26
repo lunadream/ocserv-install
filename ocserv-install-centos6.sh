@@ -7,6 +7,7 @@
 # Website: https://noname.space                    #
 #                                                  #
 ####################################################
+export LD_LIBRARY_PATH=/usr/local/lib
 
 # Check for root
 if [[ $(id -u) != "0" ]]; then
@@ -42,7 +43,7 @@ function ConfigEnvironmentVariable {
     confdir="/usr/local/etc/ocserv"
 
     # Installing System Components
-    yum install -y -q net-tools bind-utils
+    yum install -y -q net-tools bind-utils wget iproute
     # Get the name of network interface cards
     ethlist=$(ifconfig | grep "Link encap" | cut -d " " -f1)
     eth=$(printf "${ethlist}\n" | head -n 1)
@@ -182,7 +183,7 @@ function CompileOcserv {
 function ConfigOcserv {
     # Detect whether there is a certificate and key files
     if [[ ! -f "${servercert}" ]] || [[ ! -f "${serverkey}" ]]; then
-        #Create ca and server certificates（reference http://www.infradead.org/ocserv/manual.html#heading5）
+        #Create ca and server certificates
         certtool --generate-privkey --outfile ca-key.pem
 
         cat << _EOF_ >ca.tmpl
@@ -235,8 +236,8 @@ _EOF_
     sed -i "s/run-as-group = daemon/run-as-group = nobody/g" "${confdir}/ocserv.conf"
     sed -i "s/cookie-timeout = 300/cookie-timeout = 86400/g" "${confdir}/ocserv.conf"
 	sed -i "s/isolate-workers = true/isolate-workers = false/g" "${confdir}/ocserv.conf"
-    sed -i 's$route = 192.168.1.0/255.255.255.0$#route = 192.168.1.0/255.255.255.0$g' "${confdir}/ocserv.conf"
-    sed -i 's$route = 192.168.5.0/255.255.255.0$#route = 192.168.5.0/255.255.255.0$g' "${confdir}/ocserv.conf"
+    sed -i 's$^route = 192.168.1.0/255.255.255.0$#route = 192.168.1.0/255.255.255.0$g' "${confdir}/ocserv.conf"
+    sed -i 's$^route = 192.168.5.0/255.255.255.0$#route = 192.168.5.0/255.255.255.0$g' "${confdir}/ocserv.conf"
 
 
 
