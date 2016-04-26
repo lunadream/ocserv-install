@@ -182,7 +182,7 @@ function CompileOcserv {
 function ConfigOcserv {
     # Detect whether there is a certificate and key files
     if [[ ! -f "${servercert}" ]] || [[ ! -f "${serverkey}" ]]; then
-        #Create ca and server certificates（参考http://www.infradead.org/ocserv/manual.html#heading5）
+        #Create ca and server certificates（reference http://www.infradead.org/ocserv/manual.html#heading5）
         certtool --generate-privkey --outfile ca-key.pem
 
         cat << _EOF_ >ca.tmpl
